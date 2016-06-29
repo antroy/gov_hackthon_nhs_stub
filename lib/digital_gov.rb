@@ -1,8 +1,12 @@
 require 'grape'
 require 'json'
 
+require 'user_match'
+
 module DigitalGov
 	class API < Grape::API
+        include UserMatch
+
         @@config = {}
 
         def self.conf_file=(value)
@@ -21,7 +25,9 @@ module DigitalGov
 
         desc 'Returns the ids that we have'
         get '/facts' do
-            @@config['users'].keys()
+            all = @@config['users'].keys()
+            refs = all.reduce({}){|refhash, k| refhash[k] = "/facts/#{k}"; refhash}
+            {ids: all, _links: refs}
         end
 
         desc 'given an id, return user details'
@@ -41,10 +47,20 @@ module DigitalGov
         get '/identify' do
             surname = params[:surname]
             dob = params[:dob]
+            users = @@config['users']
 
-            puts "ZZZ: #{surname} : #{dob}"
-            status 404
-            {error: "multiple matches found"}
+            res = UserMatch.match(surname, dob, users)
+
+            if res.length == 0
+                status 404
+                {error: "no matches found"}
+            elsif res.length == 1
+                status 200
+                res.keys()[0]
+            else
+                status 404
+                {error: "multiple matches found"}
+            end
         end
 	end
 end
